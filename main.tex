@@ -4,12 +4,85 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
 \usepackage{graphicx}
+\usepackage{listings}
 \usepackage[colorinlistoftodos]{todonotes}
+
+\lstset{
+	language=C,
+    basicstyle=\small,
+    breaklines=true
+}
 
 \title{Work Stealing Queue}
 
 \begin{document}
 \maketitle
 
+\noindent 
+\section{Algorithm Outline}
+
+\begin{tabular}{|p{3.6cm}|p{3.6cm}|p{3.6cm}|}
+PUSH & STEAL & TAKE \\
+
+\begin{lstlisting}
+H: int, init 0
+T: int, init 0
+tasks: [W]
+
+push(task){
+ 1. t := T
+ 2. tasks[t mod W] := task
+ 3. T := t+1
+}
+\end{lstlisting} &
+
+\begin{lstlisting}
+take(){
+ 1. t := T
+ 2.	T := t;
+ 3. fence();
+ 4. h := H;
+ if(t>h){
+ // Thief will 
+ // observe t and 
+ // will not try
+ // to steal t 
+ }
+
+ ------------------
+ Synchronization 
+ protocol        
+ (worker inside) 
+ ------------------
+ 
+}
+
+\end{lstlisting} &
+
+\begin{lstlisting}
+steal(){ 
+ ------------------
+ Synchronization 
+ protocol        
+ (thief inside)  
+ ------------------
+}
+
+\end{lstlisting} 
+
+\end{tabular}
+\newline
+
+This is an example of work stealing algorithm. Basically, all work stealing queue algorithms strive to reduce overhead experienced by workers performing the computation, even at the cost of making steal operations more expensive.  As a result, these algorithms have converged on a similar design in which the worker uses a protocol based on the flag principle. If so, workers switches to a heavier synchronization protocol to decide whether the worker or thief gets the task.
+
+The queue consistes of a cyclic array of W tasks with non-overlapping head and tail indices, an index with value i points to element i mod W of the tasks array. The head H, points to the oldest task in the queue. The tail, T , points to the first unused array element. if T==H the queue is empty. (Resizing isini simdilik salliyorum.)
+
+A worker performs a put() by storing the task at the tail of the queue, and then incrementing T. \textit{Note: TSO model guarantees that the store of the task and subsequent store incrementing T are not reordered.}
+
+To take() a task, the worker "raises its flag" by decrementing T from t+1 to t, thereby publishing its intent to take task t(the task pointed to by index t). It then reads the head index H after issuing a memory fence to ensure that reading H is not reordered before decrementing T.
+
+If the worker observers that t>H, it can safely remove task t from the queue, as it has verified there can be no conflict for task t: when the tail update became globally visible, thieves have annouced intent to steal only tasks up to H<t, which means that a new steal operation will observe a queue that does not contain task t.
+
+However if the worker observes that t<=H there may be a conflict with a thief. The algorithms differ in the synchronization protocol used to handle such a conflict.
 
 \end{document}
