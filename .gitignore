@@ -34,3 +34,10 @@ Icon
 # Files that might appear on external disk
 .Spotlight-V100
 .Trashes
+
+# Ali put this - begin; latex output should be ignored
+*.aux
+*.pdf
+*.log
+*.gz
+# Ali put this - end.
