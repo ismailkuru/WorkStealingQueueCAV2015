@@ -1,0 +1,45 @@
+
+// get_index_t(tasks,T)
+function get_index_t(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(int);
+axiom(forall ret_i,hd_i,tl_i:int , tsk_pl:[int]int :: (  ret_i >= tl_i && !(tsk_pl[ret_i]>0) && (tsk_pl[ret_i-1]>0))  ==> (get_index_t(tsk_pl, hd_i,tl_i) == ret_i));
+
+//get_index_h(tasks,H)
+function get_index_h(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(int);
+axiom(forall ret_i,tl_i,hd_i:int , tsk_pl:[int]int :: ((ret_i <= hd_i) && !(tsk_pl[ret_i]>0) && (tsk_pl[ret_i + 1] > 0)) ==> (get_index_h(tsk_pl, hd_i,tl_i) == ret_i));
+
+
+function exists_any_proper_task_h(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(bool);
+axiom(forall hd_i,tl_i:int , tsk_pl:[int]int :: (exists ret_i:int :: ret_i<=hd_i &&  tsk_pl[ret_i]>0) <==> exists_any_proper_task_h(tsk_pl, hd_i,tl_i));
+
+
+
+
+function exists_any_proper_task_t(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(bool);
+axiom(forall hd_i,tl_i:int , tsk_pl:[int]int :: ( exists ret_i:int ::  ret_i >= tl_i && tsk_pl[ret_i]>0) <==> exists_any_proper_task_t(tsk_pl, hd_i,tl_i));
+ 
+/* Invariants*/
+
+// get_index_t(tasks,T)
+function get_index_t(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(int);
+axiom(forall ret_i,hd_i,tl_i:int , tsk_pl:[int]int :: (  ret_i >= tl_i && !(tsk_pl[ret_i]>0) && (tsk_pl[ret_i-1]>0))  ==> (get_index_t(tsk_pl, hd_i,tl_i) == ret_i));
+
+//get_index_h(tasks,H)
+function get_index_h(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(int);
+axiom(forall ret_i,tl_i,hd_i:int , tsk_pl:[int]int :: ((ret_i <= hd_i) && !(tsk_pl[ret_i]>0) && (tsk_pl[ret_i + 1] > 0)) ==> (get_index_h(tsk_pl, hd_i,tl_i) == ret_i));
+
+
+function exists_any_proper_task_h(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(bool);
+axiom(forall hd_i,tl_i:int , tsk_pl:[int]int :: (exists ret_i:int :: ret_i<=hd_i &&  tsk_pl[ret_i]>0) <==> exists_any_proper_task_h(tsk_pl, hd_i,tl_i));
+
+function exists_any_proper_task_t(tsk_pool:[int]int, ref_index_h:int, ref_index_t:int)returns(bool);
+axiom(forall hd_i,tl_i:int , tsk_pl:[int]int :: ( exists ret_i:int ::  ret_i >= tl_i && tsk_pl[ret_i]>0) <==> exists_any_proper_task_t(tsk_pl, hd_i,tl_i));
+
+
+//invariant(forall i : int :: H<=i && i< T ==> tasks[i] >0 );
+//invariant(forall  n_p :int :: H<T && n_p >= T && !(tasks[n_p]>0) && (tasks[n_p -1 ] >0)  ==> (forall p:int :: p>=T && p<n_p ==> tasks[p] > 0));
+//invariant(forall  n_p :int :: H<T && n_p <= H && !(tasks[n_p]>0) && (tasks[n_p +1 ] >0)  ==> (forall p:int :: p<=H && p>n_p ==> tasks[p] > 0));
+
+
+invariant ( (H<=T && MAX_tail>=T &&  !(tasks[MAX_tail] > 0)) ==> (forall bt:int :: bt>=T && bt<MAX_tail ==> tasks[bt] > 0))
+
+invariant((H<=T && MIN_head  <=H && !(tasks[MIN_head] >0)) ==> (forall hl:int :: hl <=H && hl>MIN_head ==> tasks[hl]>0))

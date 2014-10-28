@@ -1,0 +1,54 @@
+inline all
+assert Call_2 tid == ownerThread
+assert Atomic_3 tid == ownerThread
+assert Call_4 tid == ownerThread
+assert Atomic_5 tid == ownerThread
+assert Atomic_7 tid == ownerThread
+assert Call_19 tid == ownerThread
+assert Atomic_20 tid == ownerThread
+assert Call_21 tid == ownerThread
+assert Call_22 tid == ownerThread
+assert Atomic_23 tid == ownerThread
+assert Atomic_23 tid == ownerThread
+assert Atomic_25 tid == ownerThread
+assert Atomic_27 tid == ownerThread
+assert Atomic_30 tid == ownerThread
+assert Call_49 tid == ownerThread
+assert Atomic_50 tid == ownerThread
+assert Call_51 tid == ownerThread
+assert Call_52 tid == ownerThread
+assert Atomic_53 tid == ownerThread
+assert Atomic_55 tid == ownerThread
+assert Atomic_57 tid == ownerThread
+assert Call_66 ownerThread == tid
+assert Atomic_67 tid == ownerThread
+assert Call_68 tid == ownerThread
+assert Call_69 tid == ownerThread
+assert Atomic_70 tid == ownerThread
+assert Atomic_72 tid == ownerThread
+assert Atomic_75 tid == ownerThread
+assert Call_83 tid != ownerThread
+assert Call_84 tid != ownerThread
+assert Atomic_85 tid != ownerThread
+assert Atomic_88 tid != ownerThread
+assert Call_92 tid != ownerThread
+assert Call_93 tid != ownerThread
+assert Atomic_94 tid != ownerThread
+assert Atomic_95 tid != ownerThread
+assert Call_97 tid != ownerThread
+assert Call_98 tid != ownerThread
+assert Atomic_99 tid != ownerThread
+assert Atomic_100 tid != ownerThread
+assert Atomic_102 tid == ownerThread
+assert Call_103 tid == ownerThread
+assert Call_104 tid == ownerThread
+assert Call_105 tid == ownerThread
+assert Call_106 tid == ownerThread
+assert Call_107 tid == ownerThread
+assert Atomic_27 IsBufferEmpty(ownerThread, ThreadPool)
+assert Atomic_30 IsBufferEmpty(ownerThread, ThreadPool)
+assert Atomic_57 IsBufferEmpty(ownerThread, ThreadPool)
+assert Atomic_85 IsBufferEmpty(tid, ThreadPool)
+assert Atomic_94 IsBufferEmpty(tid, ThreadPool)
+assert Atomic_95 IsBufferEmpty(tid, ThreadPool)
+reduce all

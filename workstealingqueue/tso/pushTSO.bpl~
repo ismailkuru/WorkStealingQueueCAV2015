@@ -1,0 +1,166 @@
+
+const ownerThread :TID;
+const unique T:variable;
+const unique H:variable;
+const unique tasks : variable;
+const unique NULL :int ;
+const unique ABORT:int ;
+
+// Auxiliary variables : version numbers 
+var T_v:int;
+var H_v:int;
+
+
+invariant(T.addr < H.addr);
+invariant(H.addr < 0);
+invariant(tasks.addr > 0);
+//invariant(AllBuffersEmptyForVar(H, ThreadPool));
+//invariant(forall td :TID :: td != ownerThread ==> !ExistsInBuffer(T,td, ThreadPool));
+
+
+function default_post_cond(old_head:int, old_tail:int, hd:int , tl:int)returns(bool);
+axiom(forall oh,ot,h,t:int  :: {default_post_cond(oh ,ot ,h ,t)} t >= ot && h>=oh <==> default_post_cond(oh ,ot ,h ,t) );
+
+procedure {:isatomic} {:ispublic false} read_head()returns(result:int){
+
+	var HD:int;
+	var TL:int;
+	HD := ThreadPool[tid].wb_head;
+	TL := ThreadPool[tid].wb_tail;
+	
+	if(*){
+		assume (forall i:int :: HD<=i  && i< TL ==> 
+			ThreadPool[tid].wb[i].addr != H.addr  );
+		
+		result := H.value;
+		assert result == H.mostRecent;
+	}
+	else{
+	
+		assume HD < TL;
+		havoc result;
+		assume (exists i:int:: 
+				               (HD<=i && i<TL &&
+                                result == ThreadPool[tid].wb[i].value &&		
+		                        H.addr == ThreadPool[tid].wb[i].addr &&
+								(forall j:int:: (i<j&&j<TL) ==> H.addr != ThreadPool[tid].wb[j].addr)
+					           )
+			   );
+		assert result == H.mostRecent;
+
+	}
+}
+
+
+procedure {:isatomic} {:ispublic false} read_tail()returns(result:int){
+	
+	var HD:int;
+	var TL:int;
+	HD := ThreadPool[tid].wb_head;
+	TL := ThreadPool[tid].wb_tail;
+	
+	if(*){
+		assume (forall i:int :: HD<=i  && i< TL ==> 
+			ThreadPool[tid].wb[i].addr != T.addr  );
+		
+		result := T.value;
+		assert result == T.mostRecent;
+		
+	}
+	else{
+	
+		assume HD < TL;
+		havoc result;
+		assume (exists i:int:: 
+				               (HD<=i && i<TL &&
+                                result == ThreadPool[tid].wb[i].value &&		
+		                        T.addr == ThreadPool[tid].wb[i].addr &&
+								(forall j:int:: (i<j&&j<TL) ==> T.addr != ThreadPool[tid].wb[j].addr)
+					           )
+			   );
+		assert ( result == T.mostRecent);
+
+	}
+}
+ 
+procedure put(x:int)
+{
+	var t:int;
+	var ti1:int;
+	var ti2:int;
+	var t_v : int;
+	var old_wb_head:int;
+	var old_wb_tail:int;
+	
+	
+	assume ownerThread == tid ;
+	assume x > 0;
+	atomic{
+		assume ownerThread == tid;
+		assume x >0 ;	
+	
+		old_wb_tail := ThreadPool[ownerThread].wb_tail;
+		old_wb_head := ThreadPool[ownerThread].wb_head;
+	
+	}
+	
+	atomic{
+		assume ownerThread == tid;
+		assume x >0 ;	
+		
+	
+		call t := read_tail();
+  		
+		assert t == T.mostRecent;
+	}
+
+	atomic{
+		assume tid == ownerThread;
+		assume x >0 ;
+		assert t == T.mostRecent;
+		call ti1 := write_to_ptr(tasks,t, x);
+	}
+	atomic{
+		assume tid == ownerThread;
+		assume x >0 ;
+		assert t == T.mostRecent;
+		if(*){call isAtHeadAndDrain(ti1);}
+	}
+
+	atomic{
+		assume tid == ownerThread;
+		assert T.value == t ;
+		
+		assert t == T.mostRecent;
+		call ti2 := write(T,t + 1);
+	}
+	atomic{
+		assume tid == ownerThread;
+		assume x >0 ;
+		assert t == T.mostRecent;
+		if(*){call isAtHeadAndDrain(ti1);}
+	}
+	atomic{
+		assume tid == ownerThread;
+		assert (
+		       ti2 == ThreadPool[ownerThread].wb_head ==>
+		       t == T.value // ti1 drain edilen index (T update edildi bu thread tarafindan)
+
+		);
+		if(*){call isAtHeadAndDrain(ti2);}
+	}
+	
+	atomic{
+		assume tid == ownerThread;
+		
+		assert(ThreadPool[ownerThread].wb_head > ti1 
+		        ==>  
+			T.mostRecent == t && addr2variable[tasks.addr+t].mostRecent == x && addr2variable[tasks.addr+t].value == x );
+			
+		assert(ThreadPool[ownerThread].wb_head > ti2 ==> 
+			T.value == t+1 && T.mostRecent == T.value );
+		
+		assert default_post_cond(old_wb_head, old_wb_tail,ThreadPool[ownerThread].wb_head, ThreadPool[ownerThread].wb_tail);
+	
+	}
+}

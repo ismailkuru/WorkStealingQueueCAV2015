@@ -1,0 +1,5 @@
+inline all
+reduce all
+invariant (forall i : int :: H<=i && i< T ==> tasks[i] >0 )
+invariant ((H<=T && MIN_head  < H && !(tasks[MIN_head] >0)) ==> (forall hl:int :: hl <H && hl>MIN_head ==> tasks[hl]>0))
+invariant (H<=T &&  MAX_tail>=T &&  !(tasks[MAX_tail] > 0)) ==> (forall bt:int :: bt>=T && bt<MAX_tail ==> tasks[bt] > 0))

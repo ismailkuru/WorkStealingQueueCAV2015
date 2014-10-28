@@ -1,0 +1,181 @@
+
+
+const ownerThread :TID;
+const unique T:variable;
+const unique H:variable;
+const unique tasks : variable;
+const unique NULL :int ;
+
+
+
+procedure pop1() returns (result: int)
+{
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+
+    
+    assume tid == ownerThread;
+
+	call local_tail_tmp := read(T);
+	local_tail := local_tail_tmp-1;
+	call write(T,local_tail);
+	call drain_last();
+
+    atomic{  
+		assert local_tail == T.value;
+		call local_head := read(H);
+		assume local_head < local_tail; // Propagated from below: THIS NEEDS ATTENTION, MAYBE NEW PROOF STEP.
+	}		  
+
+	atomic  {  
+		assert local_tail == T.value;
+		call result := read_from_ptr(tasks, local_tail);
+        assume local_head < local_tail;
+        return;
+	}
+}
+
+procedure pop2() returns (result: int)
+{
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+
+
+  assume tid == ownerThread;
+  call local_tail_tmp := read(T);
+  local_tail := local_tail_tmp -1 ;
+  call write(T, local_tail);
+  call drain_last();
+
+  atomic  {
+       assert local_tail == T.value;
+		call result := read_from_ptr(tasks,local_tail);
+  }
+
+  atomic  {
+     assert local_tail == T.value;
+     // h := H; h_v := H_v;
+    call local_head := read(H);
+	assume local_head == local_tail;
+  }
+
+
+  atomic  {
+		
+		 assume local_head == local_tail;
+          
+        // assume h_v == H_v; assume h == H;
+       assert local_tail == T.value;
+	   call write(T, local_head + 1);
+		call drain_last();
+	   }
+
+  atomic  {  
+  	  
+      //assert t_v == T_v;
+      //assert t == T; Bu neden kapandi ????? Ask Serdar ?
+	  assume local_head == H.value ;
+	  call write(H,local_head+1);
+	  call drain_last();
+      return;
+  }
+}
+
+
+procedure pop3() returns (result: int){
+
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+
+  	assume tid == ownerThread;
+
+	call local_tail_tmp := read(T);
+	local_tail := local_tail_tmp -1 ;
+	call write(T, local_tail);
+	call drain_last();
+
+  atomic  {  
+          assert local_tail == T.value;
+          call local_head := read(H);
+          assume local_tail < local_head; 
+  }
+
+
+  atomic  {  
+  	  
+	assert local_tail == T.value;
+    assert local_tail < local_head;
+	call write(T,local_head);
+    call drain_last();
+  }
+
+  atomic  {
+          result := NULL;
+  }
+
+}
+
+
+procedure steal_succ() returns (result: int)
+{
+  var local_tail: int;
+  var local_head: int;
+  var tsk : int;
+
+    
+
+	    assume tid != ownerThread;
+		call local_head := read(H);
+		call tsk := read_from_ptr(tasks, local_head);   //
+		
+		
+		call local_head :=  read( H); 
+		assume local_head < T.value; 
+		call tsk := read_from_ptr(tasks, local_head); 
+			
+            
+	
+
+    atomic{ // Update H as long as it H is not changed
+         assume tid != ownerThread;
+	    
+		 call write(H,local_head + 1);
+         call drain_last();
+		 
+    }
+
+    result := tsk;
+}
+
+procedure steal_abort() returns (result: int){
+
+  var local_tail: int;
+  var local_head: int;
+
+  //havoc h; // abstracted from h := H;
+  //havoc t; // abstracted from t := T;
+  // skip; // abstracted from assume h >= t;
+  call local_tail := read(T);
+  call local_head := read(H);
+  assume local_head >= local_tail;
+  result := NULL;
+}
+
+
+procedure put(x:int)
+{
+	var tail_index:int;
+  
+	assume ownerThread == tid ;
+	
+	call tail_index := read(T);
+  	
+	call write_to_ptr(tasks,tail_index, x);
+	call drain_last();//ref_to_variable[x.addr].value[NEXT_PTR] := tAdr;
+	
+	call write(T,tail_index + 1);
+	call drain_last();
+}

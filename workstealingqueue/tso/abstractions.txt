@@ -1,0 +1,127 @@
+
+The correctness assertions to add
+
+
+
+// Application dependent correctness predicates
+
+function IsTailIncremented( tl: variable , t :TID) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall tal:variable , td:TID :: {IsTailIncremented(tal, td)}
+	 IsTailIncremented(tal, td) <==>
+	 ((tal.valInbuffers[td] == tal.value) )); // assuming that valInBuffers is updated with write_to_buffer function before and we are checking whether the memory value is what we want (incremented)
+function IsTailDecremented( tl: variable , t :TID) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall tal:variable , td:TID  :: {IsTailDecremented(tal, td)}
+	 IsTailDecremented(tal, td) <==>
+	 ((tal.valInbuffers[td] == tal.value) )); // assuming that valInBuffers is updated with write_to_buffer function before and we are checking whether the memory value is what we want (decremented)
+
+
+
+
+function IsHeadIncremented( hd: variable , t :TID ) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall hed:variable , td:TID  :: {IsTailIncremented(hed, td)}
+	 IsTailIncremented(hed, td) <==>
+	 ((hed.valInbuffers[td] == hed.value) )); // assuming that valInBuffers is updated with write_to_buffer function before and we are checking whether the memory value is what we want (incremented)
+function IsHeadDecremented( hd: variable , t :TID ) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall hed:variable , td:TID  :: {IsHeadDecremented(hed, td)}
+	 IsHeadDecremented(hed, td) <==>
+	 ((hed.valInbuffers[td] == hed.value) )); // assuming that valInBuffers is updated with write_to_buffer function before and we are checking whether the memory value is what we want (decremented)
+
+
+
+
+// 1. no flush  needed  or no  fail occurs  : Ex : head < ls 
+//    1.1 Tail related
+function IsTailDecrementedOnMemOrStillInBuffer( tl: variable , t :TID , th_pool :[TID]thread) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall tal:variable , td:TID , thpl:[TID]thread :: {IsTailDecrementedOnMemOrStillInBuffer(tal, td, thpl)}
+	 IsTailDecrementedOnMemOrStillInBuffer(tal, td, thpl) <==>
+	 (IsTailDecremented(tal,td)  || StillInBuffer(tal, td , thpl) ));
+
+function IsTailIncrementedOnMemOrStillInBuffer( tl: variable , t :TID , th_pool :[TID]thread) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall tal:variable , td:TID , thpl:[TID]thread :: {IsTailIncrementedOnMemOrStillInBuffer(tal, td, thpl)}
+	 IsTailIncrementedOnMemOrStillInBuffer(tal, td, thpl) <==>
+	 (IsTailIncremented(tal,td)  || StillInBuffer(tal, td , thpl) ));
+
+	 // Ismail unutma t.valInBuffers == t.value yazarken valInBuffers daki deger memory'e drain edilmis durum
+	 // veya hala drain etmedin  yani : call write ( T , onceden_okudugun +/- 1 ) ; assert IsTailUpdatedOnMemoryOrStillInBuffer;
+
+// Soru : bu predicate ve assert arasinda girecek bir tail increment + tail decrement , sorun yaratir mi ?
+
+
+    
+//   1.2 Head related
+function IsHeadDecrementedOnMemOrStillInBuffer( hd: variable , t :TID , th_pool :[TID]thread) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall hed:variable , td:TID , thpl:[TID]thread :: {IsHeadDecrementedOnMemOrStillInBuffer(hed, td, thpl)}
+	 IsHeadDecrementedOnMemOrStillInBuffer(hed, td, thpl) <==>
+	 (IsHeadDecremented(hed,td)  || StillInBuffer(hed, td , thpl) ));
+
+function IsHeadIncrementedOnMemOrStillInBuffer( hd: variable , t :TID , th_pool :[TID]thread) returns (bool); // val.valsInBuffer[t] compared with val.value
+axiom(forall hed:variable , td:TID , thpl:[TID]thread :: {IsHeadIncrementedOnMemOrStillInBuffer(hed, td, thpl)}
+	 IsHeadIncrementedOnMemOrStillInBuffer(hed, td, thpl) <==>
+	 (IsHeadIncremented(hed,td)  || StillInBuffer(hed, td , thpl) ));
+
+// 2. result is from well-formed map
+// 2.1 POP
+//   2. 1.1 pop_fail : head > tail
+function pop_head_gr_tail_result(hd:variable , tl:variable ,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread)returns (bool);
+axiom ( forall hed:variable , tal:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread :: 
+      {pop_head_gr_tail_result(hed,tal,res,l_head,l_tail,td,thpl)}
+           pop_head_gr_tail_result(hed,tal,res,l_head,l_tail,td,thpl) <==> 
+      		 ((res == NULL)  && (tal.value == l_head))); 
+
+//  2.1.2 pop_fail : head == tail : CAS fail 
+function pop_head_eq_tail_CAS_fail_result(hd:variable , tl:variable ,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread) returns (bool);
+axiom ( forall hed:variable , tal:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread :: 
+      {pop_head_eq_tail_CAS_fail_result(hed,tal,res,l_head,l_tail,td,thpl)}
+           pop_head_eq_tail_CAS_fail_result(hed,tal,res,l_head,l_tail,td,thpl) <==> 
+      	   	 ((res == NULL)  && (tal.value == l_tail)));
+// 2.1.3 pop_success : head < tail
+function pop_head_ls_tail_result(hd:variable , tl:variable ,tsks:variable,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread, th_to_var : [int]variable) returns (bool);
+axiom ( forall hed:variable , tal:variable,tks:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread, th_t_var:[int]variable :: 
+      {pop_head_ls_tail_result(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var)}
+            pop_head_ls_tail_result(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var) <==> 
+      		 (res == th_t_var[tks.addr + l_tail].value || res == th_t_var[tks.addr + l_tail].valInbuffers[td] ) && (res > 0) &&
+		  IsTailDecrementedOnMemOrStillInBuffer( tal , td , thpl));
+
+
+// 2.1.4 pop_succes : head == : CAS success 
+function pop_head_eq_tail_CAS_succ_result(hd:variable , tl:variable ,tsks:variable,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread, th_to_var : [int]variable) returns (bool);
+axiom ( forall hed:variable , tal:variable,tks:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread, th_t_var:[int]variable :: 
+      {pop_head_eq_tail_CAS_succ_result(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var)}
+           pop_head_eq_tail_CAS_succ_result(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var) <==> 
+      		 (res == th_t_var[tks.addr + l_tail].value || res == th_t_var[tks.addr + l_tail].valInbuffers[td] ) && (res > 0) &&
+		  (T.value == l_head + 1 ) && (H.value == l_head + 1));
+
+
+//2.2 STEAL
+// 2.2.1 steal_succ : head < tail
+function steal_CAS_suc(hd:variable , tl:variable ,tsks:variable,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread, th_to_var : [int]variable) returns (bool);
+axiom ( forall hed:variable , tal:variable,tks:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread, th_t_var:[int]variable :: 
+      {steal_CAS_suc(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var)}
+          steal_CAS_suc(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var) <==> 
+      		 (res == th_t_var[tks.addr + l_head].value || res == th_t_var[tks.addr + l_head].valInbuffers[td] ) && (res > 0) &&
+		   (H.value == l_head + 1));
+
+
+// 2.2.2 steal_fail : head > tail 
+function steal_head_gr_tail_result(hd:variable , tl:variable ,tsks:variable,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread, th_to_var : [int]variable) returns (bool);
+axiom ( forall hed:variable , tal:variable,tks:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread, th_t_var:[int]variable :: 
+      {steal_head_gr_tail_result(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var)}
+          steal_head_gr_tail_result(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var) <==> 
+      		  (res == NULL));
+
+
+// 2.2.3 steal_fail 
+function steal_CAS_fail(hd:variable , tl:variable ,tsks:variable,result : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread, th_to_var : [int]variable) returns (bool);
+axiom ( forall hed:variable , tal:variable,tks:variable,res:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread, th_t_var:[int]variable :: 
+      {steal_CAS_fail(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var)}
+          steal_CAS_fail(hed,tal,tks,res,l_head,l_tail,td,thpl,th_t_var) <==> 
+      		  (res == ABORT));
+
+
+//2.3 PUT
+function put_result(hd:variable , tl:variable ,tsks:variable,insrt : int ,local_head :int ,local_tail :int ,  t:TID , th_pool:[TID]thread, th_to_var : [int]variable) returns (bool);
+axiom ( forall hed:variable , tal:variable,tks:variable,to_insert:int  ,l_head:int , l_tail :int  ,td : TID , thpl:[TID]thread, th_t_var:[int]variable :: 
+      {put_result(hed,tal,tks,to_insert,l_head,l_tail,td,thpl,th_t_var)}
+          put_result(hed,tal,tks,to_insert,l_head,l_tail,td,thpl,th_t_var) <==> 
+      		( (th_t_var[tks.addr + l_tail].value == to_insert   ) && (to_insert > 0) && (T.value == l_tail + 1)));
+

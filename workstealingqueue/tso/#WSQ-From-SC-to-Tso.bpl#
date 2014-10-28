@@ -1,0 +1,242 @@
+
+
+const ownerThread :TID;
+const unique T:variable;
+const unique H:variable;
+const unique tasks : variable;
+const unique NULL :int ;
+const unique ABORT:int ;
+
+
+
+procedure pop_head_ls_tail() returns (result: int)
+{
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+  var tail_version:int;
+    
+    assume tid == ownerThread;
+
+	call local_tail_tmp := read(T);
+	local_tail := local_tail_tmp-1;
+	call write(T,local_tail);
+	
+	tail_version := T.ver; 
+	// I am not sure whether this is a tso read or a normal read
+	
+	
+    atomic{  
+     assert tail_version == T.ver;
+      assert local_tail == T.value;
+      call local_head := read(H);
+      assume local_head < local_tail; 
+    }		  
+
+  atomic  {  
+  	  assert tail_version == T.ver;
+      assert local_tail == T.value;
+      call result := read_from_ptr(tasks, local_tail);
+      assert result  > 0;
+      assume local_head < local_tail;
+      return;
+  }
+}
+
+procedure pop_head_eq_tail_suc() returns (result: int)
+{
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+  var tail 
+
+  assume tid == ownerThread;
+  call local_tail_tmp := read(T);
+  local_tail := local_tail_tmp -1 ;
+  call write(T, local_tail);
+  call drain_singleton();
+  
+  
+
+
+  atomic  {
+       assert local_tail == T.value;
+	call result := read_from_ptr(tasks,local_tail);
+	assert result > 0;
+  }
+
+  atomic  {
+     assert result > 0 ;
+     assert local_tail == T.value;
+     call local_head := read(H);
+     assume local_head == local_tail;
+  }
+
+
+  atomic  {
+	assert result > 0;
+	//	 assert IsBufferEmpty(ownerThread, ThreadPool);	
+	 assume local_head == local_tail;
+          
+        assert local_tail == T.value;
+	 
+	 	
+	 call write(T, local_head + 1);
+	 call drain_singleton();
+  }
+
+  atomic  {  
+  	  assert result > 0 ;
+    // assert IsBufferEmpty(ownerThread, ThreadPool);	
+	 assume local_head == H.value ;
+	  call write(H,local_head+1);
+	  call drain_singleton();
+	  return;
+  }
+}
+
+procedure pop_head_eq_tail_not_suc() returns (result: int)
+{
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+
+
+  assume tid == ownerThread;
+  call local_tail_tmp := read(T);
+  local_tail := local_tail_tmp -1 ;
+  call write(T, local_tail);
+  call drain_singleton();
+
+  // Tail is decremented
+
+  atomic  {
+       assert local_tail == T.value;
+	call result := read_from_ptr(tasks,local_tail);
+  }
+
+  atomic  {
+
+     assert local_tail == T.value;
+    call local_head := read(H);
+	assume local_head == local_tail;
+  }
+
+
+  atomic  {  
+      // assert IsBufferEmpty(ownerThread, ThreadPool);
+      assume local_head != H.value ;
+      result := NULL;
+	  return;
+  }
+}
+procedure pop_head_gt_tail() returns (result: int){
+
+  var local_tail: int;
+  var local_tail_tmp:int ;
+  var local_head: int;
+
+  	  assume tid == ownerThread;
+
+	call local_tail_tmp := read(T);
+	local_tail := local_tail_tmp -1 ;
+	call write(T, local_tail);
+	call drain_singleton(); 
+  	// tail is decrmented
+
+  atomic  {  
+          assert local_tail == T.value;
+          call local_head := read(H);
+          assume local_tail < local_head; 
+          
+  }
+
+
+  atomic  {  
+  	  
+	  assert local_tail == T.value;
+     	  assert local_tail < local_head;
+	  call write(T,local_head);
+	  call drain_singleton();
+
+
+}
+
+  atomic  {
+          result := NULL;
+  }
+
+}
+
+
+procedure steal_head_ls_tail_succ() returns (result: int)
+{
+  var local_tail: int;
+  var local_head: int;
+  var tsk : int;
+
+    
+
+	    assume tid != ownerThread;
+		call local_head := read(H);
+		call tsk := read_from_ptr(tasks, local_head); 
+
+	
+
+    atomic{
+     // assert IsBufferEmpty(tid,ThreadPool);
+	  assume tid != ownerThread;
+          call write(H,local_head + 1);
+          call drain_singleton();
+		 
+    }
+
+    result := tsk;
+}
+procedure steal_head_ls_tail_succ_not()returns (result : int ){
+
+	var local_tail: int;
+	var local_head: int;
+	var tsk : int;
+
+	assume tid != ownerThread;
+	call local_head := read(H);
+	call tsk := read_from_ptr(tasks, local_head);   //
+	    	  
+//	 assert IsBufferEmpty(tid,ThreadPool);
+	assume local_head != H.value;
+	result := ABORT;
+
+}
+
+
+procedure steal_head_ge_tail() returns (result: int){
+ 
+  var local_tail: int;
+  var local_head: int;
+
+  //havoc h; // abstracted from h := H;
+  //havoc t; // abstracted from t := T;
+  // skip; // abstracted from assume h >= t;
+assume tid != ownerThread ;
+  call local_tail := read(T);
+  call local_head := read(H);
+  assume local_head >= local_tail;
+  result := NULL;
+}
+ 
+procedure put(x:int)
+{
+	var tail_index:int;
+	  
+	assume ownerThread == tid ;
+	assume x > 0;
+
+	call tail_index := read(T);
+  	
+	call write_to_ptr(tasks,tail_index, x);
+	call drain_singleton();
+	
+	call write(T,tail_index + 1);
+	call drain_singleton();
+}
