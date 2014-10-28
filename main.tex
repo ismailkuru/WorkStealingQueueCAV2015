@@ -7,9 +7,12 @@
 \usepackage{listings}
 \usepackage[colorinlistoftodos]{todonotes}
 
+\usepackage{enumitem}
+\newcommand{\COMMENT}[1]{}
+
 \lstset{
 	language=C,
-    basicstyle=\small,
+    %basicstyle=\small,
     breaklines=true
 }
 
@@ -21,33 +24,118 @@
 \noindent 
 \section{Algorithm Outline}
 
+\begin{figure}[ht]
+\begin{lstlisting}
+push(task)
+{
+ t := T;
+ tasks[t mod W] := task;
+ T := t+1;
+}
+
+take()
+{
+ t := T-1;
+ T := t;
+ h := H;
+ if(t>h){
+  T := h; 
+  res := EMPTY; return;
+ }
+ task := tasks[t mod W];
+ if (t>h) {
+  res := task; return;
+ }
+ succ := CAS(H,h,h+1);
+ if (succ) {
+  T := h+1;
+  res := task; return;
+ } else {
+  res := EMPTY; return;
+ }
+}
+\end{lstlisting} 
+\caption{The producer side; inserting and removing tasks.}
+\label{fig:producer}
+\end{figure}
+
+\begin{figure}[hbt]
+\begin{lstlisting}
+steal()
+{
+ h := H;
+ t := T;
+ if (h >= t) {
+  res := EMPTY; return;
+ }
+ task := tasks[h];
+ succ := CAS(H,h,h+1);
+ if (succ) {
+  res := task; return;
+ } else {
+  res := ABORT; return;
+ }
+}
+\end{lstlisting}
+\caption{The consumer side; stealing the task produced by another thread.}
+\label{fig:consumer}
+\end{figure}
+We start by stating some obvious facts about the algorithm. 
+The intention is to gather some knowledge base, going bottom up. 
+As the facts become more and more intricate, the accompanying proofs will have to be included. 
+Eventually, though, all {\em facts} must be supported by formal arguments.
+
+\paragraph{Remarks.}
+\begin{enumerate}[label=\bfseries Rem \arabic*:]
+\item The global variable $T$ is modified only by the producer. 
+The other global variable $H$ is modified by both the producer and the consumer.
+\end{enumerate}
+
+
+\COMMENT{
 \begin{tabular}{|p{3.6cm}|p{3.6cm}|p{3.6cm}|}
-PUSH & STEAL & TAKE \\
+PUSH & TAKE & STEAL \\
 
 \begin{lstlisting}
 H: int, init 0
 T: int, init 0
 tasks: [W]
 
-push(task){
- 1. t := T
- 2. tasks[t mod W] := task
- 3. T := t+1
+push(task)
+{
+ t := T;
+ tasks[t mod W] := task;
+ T := t+1;
 }
 \end{lstlisting} &
 
 \begin{lstlisting}
-take(){
- 1. t := T
- 2.	T := t;
- 3. fence();
- 4. h := H;
+take()
+{
+ t := T-1;
+ T := t;
+% 3. fence();
+ h := H;
  if(t>h){
- // Thief will 
- // observe t and 
- // will not try
- // to steal t 
+  T := h;
+  res := EMPTY;
+  return;
  }
+ task := tasks[t mod W];
+ if (t>h) {
+  res := task;
+  return;
+ }
+ succ := CAS(H,h,h+1);
+ if (succ) {
+  T := h+1;
+  res := task;
+  return;
+ } else {
+  res := EMPTY;
+  return;
+ }
+}
 
  ------------------
  Synchronization 
@@ -55,7 +143,7 @@ take(){
  (worker inside) 
  ------------------
  
-}
+
 
 \end{lstlisting} &
 
@@ -71,7 +159,9 @@ steal(){
 \end{lstlisting} 
 
 \end{tabular}
-\newline
+}
+
+%\newline
 
 This is an example of work stealing algorithm. Basically, all work stealing queue algorithms strive to reduce overhead experienced by workers performing the computation, even at the cost of making steal operations more expensive.  As a result, these algorithms have converged on a similar design in which the worker uses a protocol based on the flag principle. If so, workers switches to a heavier synchronization protocol to decide whether the worker or thief gets the task.
 
