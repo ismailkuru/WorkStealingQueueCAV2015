@@ -8,13 +8,20 @@
 \usepackage[colorinlistoftodos]{todonotes}
 
 \usepackage{enumitem}
+\usepackage{subfig}
+\usepackage{multirow}
+
 \newcommand{\COMMENT}[1]{}
 
 \lstset{
 	language=C,
-    %basicstyle=\small,
+    basicstyle=\small\ttfamily,
     breaklines=true
 }
+
+\newsavebox{\producerpushbox}
+\newsavebox{\producertakebox}
+\newsavebox{\consumerstealbox}
 
 \title{Work Stealing Queue}
 
@@ -23,43 +30,62 @@
 
 \noindent 
 \section{Algorithm Outline}
+In this section, the algorithm of the work stealing queue (WSQ) is analyzed.
+The analysis is first done assume sequentially consistent (SC) semantics.
+The analysis for total-store ordering (TSO) semantics will be done once the SC analysis is complete.
 
-\begin{figure}[ht]
+The code of WSQ is given in Fig.~\ref{fig:WSQ}. 
+The two procedures {\tt take} and {\tt push} are intended to be used by the owner of the task buffer, {\tt tasks}.
+The former is the removal of a task from the buffer; the latter is the insertion of a new task into the buffer.
+The remaining procedure {\tt steal} is to be used by threads that do not own the buffer.
+Relative to a particular task buffer, we call the owner of the buffer {\em producer}. 
+The threads that do not own the buffer are called {\em consumers}.
+In what follows, we will pretend that there is a single task buffer, turning the problem into a standard single-producer, many-consumer protocol.
+
+\begin{lrbox}{\producerpushbox}%
+\begin{minipage}[t]{.45\linewidth}%
+\vspace*{\fill}
 \begin{lstlisting}
-push(task)
-{
- t := T;
- tasks[t mod W] := task;
- T := t+1;
-}
+ push(task)
+ {
+  t := T;
+  tasks[t] := task;
+  T := t+1;
+ }
+\end{lstlisting}%
+\end{minipage}%
+\end{lrbox}
 
-take()
-{
- t := T-1;
- T := t;
- h := H;
- if(t>h){
-  T := h; 
-  res := EMPTY; return;
+\begin{lrbox}{\producertakebox}%
+\begin{minipage}[t]{.45\linewidth}%
+\begin{lstlisting}
+ take()
+ {
+  t := T-1;
+  T := t;
+  h := H;
+  if(t<h) {
+   T := h; 
+   res := EMPTY; return;
+  }
+  task := tasks[t];
+  if (t>h) {
+   res := task; return;
+  }
+  succ := CAS(H,h,h+1);
+  if (succ) {
+   T := h+1;
+   res := task; return;
+  } else {
+   res := EMPTY; return;
+  }
  }
- task := tasks[t mod W];
- if (t>h) {
-  res := task; return;
- }
- succ := CAS(H,h,h+1);
- if (succ) {
-  T := h+1;
-  res := task; return;
- } else {
-  res := EMPTY; return;
- }
-}
-\end{lstlisting} 
-\caption{The producer side; inserting and removing tasks.}
-\label{fig:producer}
-\end{figure}
+\end{lstlisting}%
+\end{minipage}%
+\end{lrbox}%
 
-\begin{figure}[hbt]
+\begin{lrbox}{\consumerstealbox}
+\begin{minipage}[t]{.45\linewidth}
 \begin{lstlisting}
 steal()
 {
@@ -77,18 +103,84 @@ steal()
  }
 }
 \end{lstlisting}
-\caption{The consumer side; stealing the task produced by another thread.}
+\end{minipage}
+\end{lrbox}
+
+
+
+\begin{figure}[t]
+\centering
+\begin{tabular}{cc}
+\multirow{2}{*}{\subfloat[Removing a task.]{\usebox{\producertakebox}}} 
+&
+%\multirow{1}{*}{\subfloat[Stealing a task.]{\usebox{\consumerstealbox}}}
+\\
+&
+\subfloat[Stealing a task.]{\usebox{\consumerstealbox}}
+%\multirow{-2}{*}{\subfloat[Stealing a task.]{\usebox{\consumerstealbox}}}
+\\
+& \subfloat[Inserting a task.]{\usebox{\producerpushbox}}\\
+\end{tabular}
+\\
+\caption{The pseudo-code for the Work Stealing Queue (WSQ).}
+\label{fig:WSQ}
+\end{figure}
+
+\COMMENT{
+\begin{figure}
+\begin{lstlisting}
+\caption{The consumer side.}
 \label{fig:consumer}
 \end{figure}
+}
+
+\newcommand{\taketinit}{\ensuremath{T_{t,init}}}
+\newcommand{\takehinit}{\ensuremath{H_{t,init}}}
+\newcommand{\taketdecr}{\ensuremath{T_{t,decr}}}
+\newcommand{\taketsucc}{\ensuremath{T_{t,succ}}}
+\newcommand{\takehsucc}{\ensuremath{H_{t,succ}}}
+\newcommand{\taketfail}{\ensuremath{T_{t,fail}}}
+\newcommand{\taketexit}{\ensuremath{T_{t,exit}}}
+\newcommand{\takehexit}{\ensuremath{H_{t,exit}}}
+
+\paragraph{Remarks.}
 We start by stating some obvious facts about the algorithm. 
 The intention is to gather some knowledge base, going bottom up. 
 As the facts become more and more intricate, the accompanying proofs will have to be included. 
 Eventually, though, all {\em facts} must be supported by formal arguments.
 
-\paragraph{Remarks.}
+We will use the following notation:
+\begin{itemize}
+\item $\taketinit$ denotes the value of {\tt T} as seen by the first read in {\tt take}.
+\item $\takehinit$ denotes the value of {\tt H} as seen by the first read in {\tt take}.
+\item $\taketdecr$ denotes the value of {\tt T} after the first decrement in {\tt take}.
+\item $\taketsucc$ denotes the value assigned to {\tt T} after the successful {\tt CAS} in {\tt take}.
+\item $\takehsucc$ denotes the value assigned to {\tt H} by the successful {\tt CAS} in {\tt take}.
+\item $\taketfail$ denotes the value of {\tt T} following the failed {\tt CAS} in {\tt take}.
+\item $\taketexit$ denotes the most recent value assigned to {\tt T} during the execution of {\tt take}.
+\item $\takehexit$ denotes the most recent value assigned to {\tt H} during the execution of {\tt take}.
+\end{itemize}
 \begin{enumerate}[label=\bfseries Rem \arabic*:]
-\item The global variable $T$ is modified only by the producer. 
-The other global variable $H$ is modified by both the producer and the consumer.
+\item The global variable {\tt T} is modified only by the producer. 
+The other global variable {\tt H} is modified by both the producer and the consumer.
+\item The global variable {\tt H} is monotonically non-decreasing. 
+In particular, any action either leaves {\tt H} unchanged or increments it by 1.
+\item {\tt T} is incremented by 1 in {\tt push}.
+\item {\tt T} is always decremented by 1 at the beginning of {\tt take}.
+In other words, $\taketdecr=\taketinit-1$.
+\item It is not true that {\tt T} is always greater than {\tt H}. 
+\item If $\taketinit$ was greater than $\takehinit+1$, then no synchronization with consumers is performed.
+There is no further modification of {\tt T} or {\tt H}.
+That is, $\taketexit=\taketdecr=\taketinit-1$ and $\takehexit=\takehinit$.
+\item If $\taketinit$ was less than or equal to $\takehinit$, then $t$ is strictly less than {\tt H}, which is not necessarily equal to $\takehinit$, which again means that there is no synchronization with consumers.
+However, $\taketexit$ is set to point to $\takehinit$.
+\item If $\taketinit$ was equal to $\takehinit+1$, then there is an attempt to synchronize with consumer threads.
+If {\tt H} has not been updated by any other concurrent (consumer) thread, that is $\mathtt{H}\neq\takehinit$, then {\tt H} is incremented by 1.
+This implies that {\tt H} assumes the value $\takehinit+1$.
+This also implies that immediately after the increment, we have $\taketdecr=\mathtt{H}-1$. 
+This justifies the remark above about the invariant $\mathtt{T}\geq \mathtt{H}$ not holding.
+So the subsequent assignment to {\tt T} of $\mathtt{h}+1$ will set $\taketexit=\takehexit$. 
+\item We conjecture that if $\takehexit\neq\takehinit$, which means that a successful {\tt CAS} had been performed by {\tt take}, $\takehexit$ is not modified by any consumer thread until {\tt take} terminates.
 \end{enumerate}
 
 
@@ -116,7 +208,7 @@ take()
  T := t;
 % 3. fence();
  h := H;
- if(t>h){
+ if(t<h){
   T := h;
   res := EMPTY;
   return;
