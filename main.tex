@@ -143,6 +143,8 @@ steal()
 \newcommand{\taketexit}{\ensuremath{T_{t,exit}}}
 \newcommand{\takehexit}{\ensuremath{H_{t,exit}}}
 
+\newcommand{\thrdstmt}[2]{\ensuremath{\langle #1:\mathtt{#2}\rangle}}
+
 \paragraph{Remarks.}
 We start by stating some obvious facts about the algorithm. 
 The intention is to gather some knowledge base, going bottom up. 
@@ -183,7 +185,65 @@ So the subsequent assignment to {\tt T} of $\mathtt{h}+1$ will set $\taketexit=\
 \item We conjecture that if $\takehexit\neq\takehinit$, which means that a successful {\tt CAS} had been performed by {\tt take}, $\takehexit$ is not modified by any consumer thread until {\tt take} terminates.
 \end{enumerate}
 
+\subsection{Possible Scenarios}
+\label{subsec:execution-scenarios}
+In this part, we enumerate possible execution traces of procedures as seen by the thread executing the procedure.
+Our main interest will be in the different ways the shared variables are updated during the course of thread $t$ executing procedure $p$, either by $t$ itself or by other threads.
+In what follows, each trace will span over several lines, with the convention that the end of each line is a statement that updates one of {\tt T} or {\tt H}.
 
+\subsubsection{Owner executing {\tt take}}
+\label{subsubsec:owner-take}
+Imagine the case where $t$ is executing {\tt take}. 
+The first observation is that $t$ owns {\tt tasks}, which implies that other threads (ranged over by $u$, $v$, etc.) can only execute {\tt steal}.
+In particular, the value of {\tt T} cannot be updated by concurrent threads.
+
+\paragraph{Owner runs in isolation.}
+There are three possibilities.
+In the first case, where $\taketinit>\takehinit+1$ holds, the trace is of the form 
+\begin{align*}
+\thrdstmt t {t := T-1} &\cdot \thrdstmt t {T := t}\\
+\ldots& \cdot \thrdstmt t {res := task}\cdot \thrdstmt t {return}
+\end{align*}
+and $\takehexit=\takehinit$, $\taketexit=\taketinit-1$.
+
+In the second case, where $\taketinit=\takehinit+1$ holds, the trace is of the form
+\begin{align*}
+\thrdstmt t {t := T-1} &\cdot \thrdstmt t {T := t}\\
+\ldots& \cdot \thrdstmt t {succ := CAS(H,h,h+1)}\\
+& \cdot \thrdstmt t {T := h+1}\\
+& \cdot \thrdstmt t {res := task}\cdot \thrdstmt t {return}
+\end{align*}
+Here, the values of both {\tt H} and {\tt T} are updated.
+At the end of this trace, we have $\taketexit=\taketinit$ and $\takehexit=\takehinit+1$.
+Because $\taketinit=\takehinit+1$, we also have $\taketexit=\takehexit$.
+Observe that up until {\tt CAS} is performed, $\taketdecr=\takehinit$.
+So, overall we have 
+\begin{itemize}
+\item $\taketinit>\takehinit=\taketinit-1$, 
+\item $\taketdecr=\takehinit$, 
+\item $\takehsucc-1=\taketdecr<\takehsucc$,  
+\item $\taketexit=\takehsucc=\takehexit$.
+\end{itemize}
+
+In the third case, where $\taketinit<\takehinit+1$ holds, the trace is of the form
+\begin{align*}
+\thrdstmt t {t := T-1} &\cdot \thrdstmt t {T := t}\\
+\ldots& \cdot \thrdstmt t {T := h}\\
+& \cdot \thrdstmt t {res := EMPTY}\cdot \thrdstmt t {return}
+\end{align*}
+Much like the first case, only the value of {\tt T} gets updated.
+In particular, we have
+\begin{itemize}
+\item $\taketdecr=\taketinit-1$,
+\item $\taketdecr<\takehinit$,
+\item $\taketexit=\takehinit=\takehexit$.
+\end{itemize}
+At this point, we cannot say more about the relation between $\taketinit$ (or $\taketdecr$) and $\takehinit$, except for the initial assumption that $\taketinit<\takehinit-1$.
+Further analysis will probably tighten the inequality between the two; we conjecture that there is a bound on $\takehinit-\taketinit$.
+If this bound did not exist, then arbitrarily old tasks would be {\em stolen}, resulting in an undesirable waste of resources.
+Note that this WSQ implementation is not idempotent: it is not OK for a task to be executed more than once by different threads.
+
+\pagebreak
 \COMMENT{
 \begin{tabular}{|p{3.6cm}|p{3.6cm}|p{3.6cm}|}
 PUSH & TAKE & STEAL \\
