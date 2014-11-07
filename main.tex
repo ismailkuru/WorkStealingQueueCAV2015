@@ -134,6 +134,8 @@ steal()
 \end{figure}
 }
 
+\newcommand{\myhandle}[3]{\ensuremath{#1_{#2,#3}}}
+
 \newcommand{\taketinit}{\ensuremath{T_{t,init}}}
 \newcommand{\takehinit}{\ensuremath{H_{t,init}}}
 \newcommand{\taketdecr}{\ensuremath{T_{t,decr}}}
@@ -191,13 +193,13 @@ In this part, we enumerate possible execution traces of procedures as seen by th
 Our main interest will be in the different ways the shared variables are updated during the course of thread $t$ executing procedure $p$, either by $t$ itself or by other threads.
 In what follows, each trace will span over several lines, with the convention that the end of each line is a statement that updates one of {\tt T} or {\tt H}.
 
-\subsubsection{Owner executing {\tt take}}
-\label{subsubsec:owner-take}
+\subsubsection{Producer executing {\tt take}}
+\label{subsec:producer-take}
 Imagine the case where $t$ is executing {\tt take}. 
 The first observation is that $t$ owns {\tt tasks}, which implies that other threads (ranged over by $u$, $v$, etc.) can only execute {\tt steal}.
 In particular, the value of {\tt T} cannot be updated by concurrent threads.
 
-\paragraph{Owner runs in isolation.}
+\paragraph{{\tt take} in isolation.}
 There are three possibilities.
 In the first case, where $\taketinit>\takehinit+1$ holds, the trace is of the form 
 \begin{align*}
@@ -242,6 +244,87 @@ At this point, we cannot say more about the relation between $\taketinit$ (or $\
 Further analysis will probably tighten the inequality between the two; we conjecture that there is a bound on $\takehinit-\taketinit$.
 If this bound did not exist, then arbitrarily old tasks would be {\em stolen}, resulting in an undesirable waste of resources.
 Note that this WSQ implementation is not idempotent: it is not OK for a task to be executed more than once by different threads.
+
+\subsection{Producer executing {\tt push}}
+\label{subsec:producer-push}
+We assume that thread $t$, the owner of {\tt tasks}, is executing {\tt push}.
+What it does is trivially incrementing the value of {\tt T}. 
+We use the following notation:
+\begin{itemize}
+\item {\myhandle T p {init}} denotes the value of {\tt T} at the beginning of {\tt push}.
+\item {\myhandle H p {init}} denotes the value of {\tt H} at the beginning of {\tt push}.
+\item {\myhandle T p {fst}} denotes the value of {\tt T} as observed by the first (and only) read in {\tt push}.
+\item {\myhandle T p {exit}} denotes the value of {\tt T} immediately following the completion of {\tt push}.
+\item {\myhandle H p {exit}} denotes the value of {\tt H} immediately following the completion of {\tt push}.
+\end{itemize}
+
+Since {\tt T} can only be modified by $t$, for all possible execution traces of {\tt push}, we have
+\begin{itemize}
+\item $\myhandle T p {init} = \myhandle T p {fst}$,
+\item $\myhandle T p {exit} = \myhandle T p {fst} + 1$.
+\end{itemize}
+The value of {\tt H} need not be constant, though, since it can be modified by concurrent consumer threads.
+
+\paragraph{{\tt push} in isolation.}
+In this case, the only trace is 
+\begin{align*}
+\thrdstmt t {t := T} \cdot \thrdstmt t {tasks[t] := task} \cdot \thrdstmt t {T := t+1}
+\end{align*}
+and we have
+\begin{itemize}
+\item $\myhandle H p {init} = \myhandle H p {exit}$.
+\end{itemize}
+
+\subsection{Consumer executing {\tt steal}}
+\label{subsec:consumer-steal}
+We assume that thread $u$ does not own {\tt tasks} and is executing {\tt steal}.
+Before going over various execution traces for {\tt steal}, we observe actions common to all.
+{\tt steal} tries to modify the value of {\tt H} only. 
+The values of both {\tt H} and {\tt T} are read.
+
+Let us use the following notation for the values of {\tt H} and {\tt T} as observed by {\tt steal}.
+\begin{itemize}
+\item {\myhandle T s {init}} denotes the value of {\tt T} at the beginning of {\tt steal}.
+\item {\myhandle H s {init}} denotes the value of {\tt H} at the beginning of {\tt steal}.
+\item {\myhandle T s {fst}} denotes the value of {\tt T} as observed by the first (and only) read in {\tt steal}.
+\item {\myhandle H s {fst}} denotes the value of {\tt H} as observed by the first read in {\tt steal}.
+\item {\myhandle H s {snd}} denotes the value of {\tt H} as observed by the second read (the {\tt CAS} statement) in {\tt steal}.
+\item {\myhandle H s {thrd}} denotes the value of {\tt H} following the {\tt CAS} statement in {\tt steal}.
+\item {\myhandle T s {exit}} denotes the value of {\tt T} immediately following the completion of {\tt steal}.
+\item {\myhandle H s {exit}} denotes the value of {\tt H} immediately following the completion of {\tt steal}.
+\end{itemize}
+
+\paragraph{{\tt steal} in isolation.}
+Depending on the values of $\myhandle T s {fst}$ and $\myhandle H s {fst}$, there are two possible traces.
+If $\myhandle T s {fst} \leq \myhandle H s {fst}$, consumer observing an empty task queue, the outcome is {\tt EMPTY}.
+The trace is of the form,
+\begin{align*}
+\thrdstmt u {h := H} &\cdot \thrdstmt u {t := T}\cdot \ldots \cdot \thrdstmt u {res := EMPTY} \cdot \thrdstmt u {return}
+\end{align*}
+In particular, there are no updates to either variable and since we assume that there are no other threads running concurrently with $u$, we have
+\begin{itemize}
+\item $\myhandle T s {init} = \myhandle T s {fst} = \myhandle T s {exit}$,
+\item $\myhandle H s {init} = \myhandle H s {fst} = \myhandle H s {exit}$,
+\item $\myhandle T s {exit} \leq \myhandle H s {exit}$.
+\end{itemize}
+Furthermore, both $\myhandle H s {snd}$ and $\myhandle H s {thrd}$ are undefined.
+
+In the other case, where $\myhandle T s {fst} > \myhandle H s {fst}$, consumer observing a non-empty task queue, the outcome is some task.
+The trace is of the form,
+\begin{align*}
+\thrdstmt u {h := H} & \cdot \thrdstmt u {t := T} \cdot \thrdstmt u {task := tasks[h]} \cdot \thrdstmt u {succ := CAS(H,h,h+1)}\\
+\ldots & \cdot \thrdstmt u {res := task} \cdot \thrdstmt u {return}
+\end{align*}
+There is one update to {\tt H}, and we have
+\begin{itemize}
+\item $\myhandle T s {init} = \myhandle T s {fst} = \myhandle T s {exit}$,
+\item $\myhandle H s {init} = \myhandle H s {fst} = \myhandle H s {snd}$,
+\item $\myhandle H s {thrd} = \myhandle H s {snd} + 1$,
+\item $\myhandle H s {exit} = \myhandle H s {thrd}$.
+\end{itemize}
+Since the index is atomically updated, the task with index $\myhandle H s {init}$ will only be stolen by this consumer; other consumers will observe a different index (and hence a different insertion by the producer).
+
+
 
 \pagebreak
 \COMMENT{
