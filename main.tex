@@ -135,6 +135,8 @@ steal()
 }
 
 \newcommand{\myhandle}[3]{\ensuremath{#1_{#2,#3}}}
+\newcommand{\mythrd}{\ensuremath{\tau}}
+\newcommand{\mythrdx}[1]{\ensuremath{\mythrd_{#1}}}
 
 \newcommand{\taketinit}{\ensuremath{T_{t,init}}}
 \newcommand{\takehinit}{\ensuremath{H_{t,init}}}
@@ -244,6 +246,62 @@ At this point, we cannot say more about the relation between $\taketinit$ (or $\
 Further analysis will probably tighten the inequality between the two; we conjecture that there is a bound on $\takehinit-\taketinit$.
 If this bound did not exist, then arbitrarily old tasks would be {\em stolen}, resulting in an undesirable waste of resources.
 Note that this WSQ implementation is not idempotent: it is not OK for a task to be executed more than once by different threads.
+
+\newcommand{\mytrace}{\ensuremath{tr}}
+\newcommand{\mytracex}[2]{\ensuremath{\mytrace_{#1,#2}}}
+
+\paragraph{{\tt take} with one {\tt steal}.}
+We will use $\mythrd .x$ to denote the value of variable $x$ as observed by thread $\mythrd$.
+For instance, $\mythrdx 1.\myhandle T t {init}$ is the value of $\myhandle T t {init}$ as observed by thread $\mythrdx 1$.
+
+As mentioned earlier, {\tt take} has four execution paths. 
+In all paths, $T$ is read exactly once.
+In the first one, where the task queue is empty, $T$ is updated twice. 
+In the second one, where the task queue has more than one task, $T$ is updated once.
+In the third and fourth ones, the task queue contains exactly one task.
+In the third path, where {\tt take} succeeds in removing the task (competing with a concurrent {\tt steal}), $T$ is updated twice.
+In the fourth path, where {\tt take} fails to remove the last taks, $T$ is updated once.
+In the first and second paths, $H$ is read once.
+In the third and fourth paths, $H$ is read twice.
+In all paths but the third, $H$ is not updated; in the third, $H$ is updated once.
+Let $\mytracex t i$ denote the $i^{th}$ execution path of {\tt take}; e.g. $\mytracex t 3$ denotes the third execution path (successful removal of the last task from the queue).
+
+There are three execution paths for {\tt steal}.
+In all the paths, $T$ is read exactly once and never updated.
+In the first path, where the task queue is empty, $H$ is read once and never updated.
+In the second and third paths, $H$ is read twice.
+In the second (successful removal) path, $H$ is updated once.
+In the third path, $H$ is not updated.
+Similar to {\tt take} execution paths, let $\mytracex s i$ denote the $i^{th}$ execution path of {\tt steal}.
+
+First, let us identify compatible execution paths by {\tt take} by $\mythrdx 1$ and {\tt steal} by $\mythrdx 2$. 
+\begin{itemize}
+ \item Let $\mythrdx 1$ go through $\mytracex t 1$.
+Since $\myhandle T t {init} \leq \myhandle H t {init}$ must hold and $\myhandle T t {exit} = \myhandle H t {init}$, at no point during the execution of {\tt steal} can $\myhandle T s {init}$ be greater than $\myhandle H s {init}$.
+This implies that only $\mytracex s 1$ is compatible with $\mytracex t 1$.
+ \item Let $\mythrdx 1$ go through $\mytracex t 2$.
+In this case $\myhandle T t {init} > \myhandle H t {init}+1$ since the {\tt t>h} is taken ($\myhandle T t {init}-1=\myhandle T t {decr}>\myhandle H t {init}$ holds).
+In other words, the value of $T$ observed by $\mythrdx 1$ is greater than the value of $H$ throughout $\mytracex t 2$.
+This implies that $\mytracex s 1$ is not possible.
+Since $\mythrdx 2$ is the only thread running {\tt steal}, it is the only one attempting an update on {\tt H}.
+Because the {\tt CAS} succeeds, only $\mytracex s 2$ is possible.
+Thus only $\mytracex s 2$ is compatible with $\mytracex t 2$.
+ \item Let $\mythrdx 1$ go through $\mytracex t 3$.
+This is the path where $\myhandle T t {init}-1=\myhandle T t {decr}=\myhandle H t {init}$.
+If $\mythrdx 2$ observes the updated value $\myhandle T t {decr}$, then the either $\mytracex s 1$ or $\mytracex s 3$ will be taken.
+We have the following inequalities.
+Initially, $\myhandle T t {init}= \myhandle H t {init}+1$. 
+So if $\mythrdx 2$ reads the value of {\tt H} at this instant, we have $\myhandle H s {init}=\myhandle H t {init} = \myhandle T t {decr}$.
+In the path $\mytracex t 1$, first the update to {\tt H} makes its value equal to $\myhandle H t {succ} = \myhandle H t {init}+1$.
+Then, the value of {\tt T} is updated to $\myhandle T t {exit} = \myhandle H t {succ} = \myhandle T t {decr} + 1$.
+So if $\myhandle T s {fst} = \myhandle T t {decr}$, then $\myhandle T s {fst} = \myhandle H s {init}$, implying that {\tt h>=t} branch will be taken ($\mytracex s 1$).
+On the other hand, if $\myhandle T s {fst} = \myhandle T t {exit}$, then $\myhandle T s {fst} = \myhandle H s {init}+1$.
+This implies that $\mythrdx 2$ will attempt a {\tt CAS} on {\tt H}.
+Now, because $\myhandle H t {init} = \myhandle H s {init}$ and {\tt CAS} by $\mythrdx 1$ succeeds, the {\tt CAS} by $\mythrdx 2$ has to fail ($\mytracex s 3$).
+Thus, $\mytracex s 1$ and $\mytracex s 3$ are compatible with $\mytracex t 3$.
+
+If $\mythrdx 2$ observes the initial value of {\tt T}, $\myhandle T s {fst} = \myhandle T t {fst}$, then $\myhandle T s {fst} > \myhandle  H s {fst}$.
+\end{itemize}
 
 \subsection{Producer executing {\tt push}}
 \label{subsec:producer-push}
